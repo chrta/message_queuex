@@ -1,0 +1,2 @@
+defmodule MessageQueue do
+end
