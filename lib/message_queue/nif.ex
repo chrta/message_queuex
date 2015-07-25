@@ -5,9 +5,10 @@ defmodule MessageQueue.Nif do
     :ok = :erlang.load_nif("./priv_dir/lib_elixir_mq", 0)
   end
 
-   @spec open(String.t) :: {atom, integer}
-  def open(mq_file) do
-    _open(String.to_char_list(mq_file))
+	# options [:read, :write]
+  @spec open(String.t, [atom]) :: {atom, integer}
+  def open(mq_file, options) do
+    _open(String.to_char_list(mq_file), options)
   end
 
   @spec read(integer) :: {atom, integer, bitstring}
@@ -25,7 +26,7 @@ defmodule MessageQueue.Nif do
     _close(fd)
   end
 
-  def _open(mq_file) do
+  def _open(mq_file, options) do
     :erlang.nif_error("NIF library not loaded")
   end
 

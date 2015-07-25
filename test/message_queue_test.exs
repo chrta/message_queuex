@@ -16,7 +16,7 @@ defmodule MessageQueueTest do
 	end
 
 	test "write and read" do
-		{:ok, fd} = MessageQueue.open @test_filename
+		{:ok, fd} = MessageQueue.open @test_filename,  [:read, :write]
 		{:ok, 0, ""} = MessageQueue.read fd
 		:ok = MessageQueue.write fd, 5, "1234"
 		{:error, 'Bad file descriptor'} = MessageQueue.write fd + 1, 6, "5678"

@@ -27,7 +27,14 @@ static ERL_NIF_TERM report_errno_error(ErlNifEnv* env, int error_number)
 static ERL_NIF_TERM _open(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
 {
   char path[MAXBUFLEN];
+  char atom_buf[MAXBUFLEN];
   mqd_t queue;
+  int open_flags;
+  int read_flag = 0;
+  int write_flag = 0;
+  
+  ERL_NIF_TERM opts;
+  ERL_NIF_TERM val;
 
 #ifdef  CREATE_QUEUE_IF_NOT_EXIST
   struct mq_attr attr;
@@ -37,12 +44,56 @@ static ERL_NIF_TERM _open(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
   attr.mq_curmsgs = 0;
 #endif
   
-  enif_get_string(env, argv[0], path, MAXBUFLEN, ERL_NIF_LATIN1);
+  if (!enif_get_string(env, argv[0], path, MAXBUFLEN, ERL_NIF_LATIN1))
+  {
+    return enif_make_badarg(env);
+  }
+  
+  opts = argv[1];
+  if (!enif_is_list(env, opts))
+  {
+    return enif_make_badarg(env);
+  }
+    
+  open_flags = O_NONBLOCK;
 
+  while(enif_get_list_cell(env, opts, &val, &opts))
+  {
+    if (!enif_get_atom(env, val, atom_buf, sizeof(atom_buf), ERL_NIF_LATIN1))
+    {
+      return enif_make_badarg(env);
+    }
+    if (strcmp("read", atom_buf) == 0)
+    {
+      read_flag = 1;
+    }
+    else if (strcmp("write", atom_buf) == 0)
+    {
+      write_flag = 1;
+    }
+    else
+    {
+      return enif_make_badarg(env);
+    }
+  }
+
+  if (read_flag && write_flag)
+  {
+    open_flags |= O_RDWR;
+  }
+  else if (read_flag)
+  {
+    open_flags |= O_RDONLY;
+  }
+  else if (write_flag)
+  {
+    open_flags |= O_WRONLY;
+  }
+  
 #ifdef CREATE_QUEUE_IF_NOT_EXIST  
-  queue = mq_open(path, O_RDWR | O_NONBLOCK | O_CREAT, S_IRWXU, &attr);
+  queue = mq_open(path, open_flags | O_CREAT, S_IRWXU, &attr);
 #else
-  queue = mq_open(path, O_RDWR | O_NONBLOCK);
+  queue = mq_open(path, open_flags);
 #endif
   
   if (queue == -1)
@@ -130,7 +181,7 @@ static ERL_NIF_TERM _close(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
 
 static ErlNifFunc nif_funcs[] =
 {
-  {"_open", 1, _open},
+  {"_open", 2, _open},
   {"_read", 1, _read},
   {"_write", 3, _write},
   {"_close", 1, _close}
