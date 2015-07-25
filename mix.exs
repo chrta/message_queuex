@@ -43,7 +43,7 @@ defmodule MessageQueue.Mixfile do
 
   defp package do
     [
-      files: ["lib", "priv", "mix.exs", "README", "LICENSE", "c_src*", "config*", "priv_dir*", "test*"],
+      files: ["lib", "priv", "mix.exs", "README.md", "LICENSE", "c_src*", "config*", "priv_dir*", "test*"],
       contributors: ["Christian Taedcke"],
       licenses: ["Apache 2.0"],
       links: %{"GitHub" => "https://github.com/chrta/message_queuex"}]
