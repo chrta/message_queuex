@@ -5,6 +5,8 @@ defmodule MessageQueue.Mixfile do
     [app: :message_queue,
      version: "0.0.1",
      elixir: "~> 1.0",
+     description: description,
+     package: package,
      compilers: [:make, :elixir, :app], # Add the make compiler
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
@@ -29,6 +31,22 @@ defmodule MessageQueue.Mixfile do
   # Type `mix help deps` for more examples and options
   defp deps do
     []
+  end
+
+  defp description do
+    """
+    Provides an interface to posix message queues.
+
+    See 'man mq_overview' for a general documentation.
+    """
+  end
+
+  defp package do
+    [
+      files: ["lib", "priv", "mix.exs", "README", "LICENSE", "c_src*", "config*", "priv_dir*", "test*"],
+      contributors: ["Christian Taedcke"],
+      licenses: ["Apache 2.0"],
+      links: %{"GitHub" => "https://github.com/chrta/message_queuex"}]
   end
 end
 

@@ -1,4 +1,5 @@
-MessageQueue
+MessageQueuex
 ============
 
-** TODO: Add description **
+Elixir NIF for posix message queues.
+
