@@ -9,8 +9,6 @@
 
 #define MAXBUFLEN 1024
 
-#define CREATE_QUEUE_IF_NOT_EXIST
-
 static ERL_NIF_TERM report_string_error(ErlNifEnv* env, const char* message)
 {
   ERL_NIF_TERM text = enif_make_string(env, message, ERL_NIF_LATIN1);
@@ -36,13 +34,11 @@ static ERL_NIF_TERM _open(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
   ERL_NIF_TERM opts;
   ERL_NIF_TERM val;
 
-#ifdef  CREATE_QUEUE_IF_NOT_EXIST
   struct mq_attr attr;
   attr.mq_flags = O_NONBLOCK;
   attr.mq_maxmsg = 10;
   attr.mq_msgsize = 256;
   attr.mq_curmsgs = 0;
-#endif
   
   if (!enif_get_string(env, argv[0], path, MAXBUFLEN, ERL_NIF_LATIN1))
   {
@@ -89,12 +85,16 @@ static ERL_NIF_TERM _open(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
   {
     open_flags |= O_WRONLY;
   }
-  
-#ifdef CREATE_QUEUE_IF_NOT_EXIST  
-  queue = mq_open(path, open_flags | O_CREAT, S_IRWXU, &attr);
-#else
-  queue = mq_open(path, open_flags);
-#endif
+
+  if (write_flag)
+  {
+    open_flags |= O_CREAT;
+    queue = mq_open(path, open_flags, S_IRWXU, &attr);
+  }
+  else
+  {
+    queue = mq_open(path, open_flags);
+  }
   
   if (queue == -1)
   {
