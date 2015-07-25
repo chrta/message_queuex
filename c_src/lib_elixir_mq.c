@@ -136,4 +136,4 @@ static ErlNifFunc nif_funcs[] =
   {"_close", 1, _close}
 };
 
-ERL_NIF_INIT(Elixir.MessageQueue, nif_funcs, NULL, NULL, NULL, NULL)
+ERL_NIF_INIT(Elixir.MessageQueue.Nif, nif_funcs, NULL, NULL, NULL, NULL)
