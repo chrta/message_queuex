@@ -1,7 +1,13 @@
 defmodule MessageQueueTest do
   use ExUnit.Case
 
-		@test_filename "/mq_test.tmp"
+	@test_filename "/mq_test.tmp"
+
+	# Crate the message queue, if it does not exist
+	setup do
+		{:ok, fd} = MessageQueue.open @test_filename,  [:read, :write]
+		:ok = MessageQueue.close fd
+  end
 
 	test "open and close" do
 		{:ok, fd} = MessageQueue.open @test_filename
