@@ -2,7 +2,8 @@ defmodule MessageQueue.Nif do
   @on_load :init
 
   def init() do
-    :ok = :erlang.load_nif("./priv_dir/lib_elixir_mq", 0)
+		path = :filename.join(:code.priv_dir(:message_queue), 'lib_elixir_mq')
+    :ok = :erlang.load_nif(path, 0)
   end
 
 	# options [:read, :write]

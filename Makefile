@@ -9,8 +9,8 @@ ifneq ($(OS),Windows_NT)
 	endif
 endif
 
-priv_dir/lib_elixir_mq.so: clean
+priv/lib_elixir_mq.so: clean
 	$(CC) $(CFLAGS) -shared $(LDFLAGS) -o $@ c_src/lib_elixir_mq.c
 
 clean:
-	$(RM) -r priv_dir/*
+	$(RM) -r priv/*
