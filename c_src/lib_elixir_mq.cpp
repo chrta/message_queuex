@@ -181,10 +181,10 @@ static ERL_NIF_TERM _close(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
 
 static ErlNifFunc nif_funcs[] =
 {
-  {"_open", 2, _open},
-  {"_read", 1, _read},
-  {"_write", 3, _write},
-  {"_close", 1, _close}
+  {"_open",  2, _open,  0},
+  {"_read",  1, _read,  0},
+  {"_write", 3, _write, 0},
+  {"_close", 1, _close, 0}
 };
 
 ERL_NIF_INIT(Elixir.MessageQueue.Nif, nif_funcs, NULL, NULL, NULL, NULL)
