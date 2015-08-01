@@ -5,3 +5,4 @@ MessageQueuex
 
 Elixir NIF for posix message queues.
 
+This NIF is implemented in c++ and uses The wrapper from https://github.com/goertzenator/nifpp

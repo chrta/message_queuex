@@ -1,4 +1,4 @@
-#include "erl_nif.h"
+#include "nifpp.h"
 
 #include <stdio.h>
 #include <string.h>
