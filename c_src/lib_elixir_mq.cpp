@@ -1,11 +1,75 @@
 #include "nifpp.h"
 
+#include <boost/bind.hpp>
+#include <boost/asio.hpp>
+#include <iostream>
+
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <mqueue.h>
 #include <errno.h>
+
+const std::string MSG_QUEUE_NAME = "/test_msg_queue";
+
+struct message
+{
+  int i;
+};
+  
+class MessageQueue
+{
+public:
+  MessageQueue(boost::asio::io_service& ioService)
+    : ioService(ioService),
+      streamDescriptor(ioService),
+      timer(ioService)
+  {
+    struct mq_attr mattr;
+    mattr.mq_maxmsg = 10;
+    mattr.mq_msgsize = sizeof(struct message);
+    mqid = mq_open(MSG_QUEUE_NAME.c_str(), O_CREAT | O_WRONLY |
+		   O_NONBLOCK, S_IREAD | S_IWRITE, &mattr);
+    std::cout << "message queue mqid = " << mqid << std::endl;
+    streamDescriptor.assign(mqid);
+    
+    streamDescriptor.async_write_some(
+				      boost::asio::null_buffers(),
+				      boost::bind(&MessageQueue::handleWrite,
+						this,
+						boost::asio::placeholders::error,
+						boost::asio::placeholders::bytes_transferred));
+  }
+  
+  void handleWrite(const boost::system::error_code &ec, std::size_t bytes_transferred)
+  {
+    timer.expires_from_now(boost::posix_time::microseconds(100));
+    timer.async_wait(boost::bind(&MessageQueue::handleTimer, this,
+			       boost::asio::placeholders::error));
+  }
+  
+  void handleTimer(const boost::system::error_code& ec)
+  {
+    message msg;
+    int sendRet = mq_send(mqid, (const char*)&msg, sizeof(message), 0);
+    std::cout << "sendRet = " << sendRet << std::endl;
+    
+    streamDescriptor.async_write_some(
+				      boost::asio::null_buffers(),
+				      boost::bind(&MessageQueue::handleWrite,
+						  this,
+						  boost::asio::placeholders::error,
+						  boost::asio::placeholders::bytes_transferred));
+  }
+  
+private:
+  boost::asio::io_service& ioService;
+  boost::asio::posix::stream_descriptor streamDescriptor;
+  boost::asio::deadline_timer timer;
+  mqd_t mqid;
+};
+
 
 #define MAXBUFLEN 1024
 
@@ -22,7 +86,7 @@ static ERL_NIF_TERM report_errno_error(ErlNifEnv* env, int error_number)
   return report_string_error(env, strerror(error_number));
 }
 
-static ERL_NIF_TERM _open(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
+extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
 {
   char path[MAXBUFLEN];
   char atom_buf[MAXBUFLEN];
@@ -109,7 +173,7 @@ static ERL_NIF_TERM _open(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
   }
 }
 
-static ERL_NIF_TERM _read(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
+extern "C" ERL_NIF_TERM _read(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
 {
   mqd_t queue = -1;
   char buf[MAXBUFLEN];
@@ -142,7 +206,7 @@ static ERL_NIF_TERM _read(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
   return report_errno_error(env, errno);
 }
 
-static ERL_NIF_TERM _write(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
+extern "C" ERL_NIF_TERM _write(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
 {
   ErlNifBinary data;
   int result;
@@ -167,7 +231,7 @@ static ERL_NIF_TERM _write(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
 }
 
 
-static ERL_NIF_TERM _close(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
+extern "C" ERL_NIF_TERM _close(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
 {
   mqd_t queue = -1;
   
@@ -179,7 +243,61 @@ static ERL_NIF_TERM _close(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
   return report_errno_error(env, errno);
 }
 
-static ErlNifFunc nif_funcs[] =
+static boost::asio::io_service* io = nullptr;
+static void* thread_func(void* arg)
+{
+  try
+  {
+    boost::asio::io_service io_service;
+    io = &io_service;
+    //do not exit run() when running out of work
+    boost::asio::io_service::work work(io_service);
+    //Reader reader(ioService);
+    io_service.run();
+    io = nullptr;
+    std::cout << "Asio exit ok" << std::endl;
+  }
+  catch (std::exception& e)
+  {
+    std::cerr << "Exception: " << e.what() << "\n";
+  }
+  io = nullptr;
+  
+  return nullptr;
+}
+
+
+static ErlNifThreadOpts *thread_opts = nullptr;
+static ErlNifTid tid;
+
+extern "C" int load(ErlNifEnv* /*env*/, void** /*priv*/, ERL_NIF_TERM /*load_info*/)
+{
+  thread_opts = enif_thread_opts_create("thread_opts");
+
+  if (enif_thread_create("", &tid, thread_func, nullptr, thread_opts) != 0)
+  {
+    return -1;
+  }
+
+  return 0;
+}
+
+extern "C" void unload(ErlNifEnv* /*env*/, void* /*priv*/)
+{
+  void* resp;
+
+  if (io)
+  {
+    io->stop();
+  }
+
+  enif_thread_join(tid, &resp);
+
+  enif_thread_opts_destroy(thread_opts);
+}
+
+
+ErlNifFunc nif_funcs[] =
 {
   {"_open",  2, _open,  0},
   {"_read",  1, _read,  0},
@@ -187,4 +305,7 @@ static ErlNifFunc nif_funcs[] =
   {"_close", 1, _close, 0}
 };
 
-ERL_NIF_INIT(Elixir.MessageQueue.Nif, nif_funcs, NULL, NULL, NULL, NULL)
+extern "C"
+{
+ERL_NIF_INIT(Elixir.MessageQueue.Nif, nif_funcs, &load, NULL, NULL, &unload)
+}
