@@ -11,7 +11,9 @@
 #include <mqueue.h>
 #include <errno.h>
 
-const std::string MSG_QUEUE_NAME = "/test_msg_queue";
+
+static boost::asio::io_service* io = nullptr;
+constexpr int MAXBUFLEN = 1024;
 
 struct message
 {
@@ -21,25 +23,69 @@ struct message
 class MessageQueue
 {
 public:
-  MessageQueue(boost::asio::io_service& ioService)
+
+  enum class OpenFlags {READ_ONLY, WRITE_ONLY, READ_WRITE};
+  
+  MessageQueue(boost::asio::io_service& ioService, const std::string& queueName, OpenFlags flags)
     : ioService(ioService),
       streamDescriptor(ioService),
-      timer(ioService)
+      timer(ioService),
+      mqid(-1)
   {
-    struct mq_attr mattr;
-    mattr.mq_maxmsg = 10;
-    mattr.mq_msgsize = sizeof(struct message);
-    mqid = mq_open(MSG_QUEUE_NAME.c_str(), O_CREAT | O_WRONLY |
-		   O_NONBLOCK, S_IREAD | S_IWRITE, &mattr);
+    if (flags == OpenFlags::READ_ONLY)
+    {
+      mqid = mq_open(queueName.c_str(), O_RDONLY | O_NONBLOCK);
+    }
+    else
+    {
+      int open_flags = O_CREAT | O_NONBLOCK;
+      struct mq_attr mattr;
+      mattr.mq_maxmsg = 10;
+      mattr.mq_msgsize = sizeof(struct message);
+
+      if (flags == OpenFlags::WRITE_ONLY)
+      {
+	open_flags |= O_WRONLY;
+      }
+      else if (flags == OpenFlags::READ_WRITE)
+      {
+	open_flags |= O_RDWR;
+      }
+      
+      mqid = mq_open(queueName.c_str(), open_flags, S_IREAD | S_IWRITE, &mattr);
+    }
+
     std::cout << "message queue mqid = " << mqid << std::endl;
-    streamDescriptor.assign(mqid);
+
+    if (mqid == -1)
+    {
+      std::cerr << "Failed to open queue with error: " << strerror(errno) << std::endl;
+      throw std::runtime_error("Failed to open queue");
+    }
     
+    streamDescriptor.assign(mqid);
+#if 0    
     streamDescriptor.async_write_some(
 				      boost::asio::null_buffers(),
 				      boost::bind(&MessageQueue::handleWrite,
 						this,
 						boost::asio::placeholders::error,
 						boost::asio::placeholders::bytes_transferred));
+#endif
+
+    streamDescriptor.async_read_some(
+				     boost::asio::null_buffers(),
+				     boost::bind(&MessageQueue::handleRead,
+						 this,
+						 boost::asio::placeholders::error)); 
+  }
+
+  ~MessageQueue()
+  {
+    if (mqid >= 0)
+    {
+      mq_close(mqid);
+    }
   }
   
   void handleWrite(const boost::system::error_code &ec, std::size_t bytes_transferred)
@@ -62,6 +108,52 @@ public:
 						  boost::asio::placeholders::error,
 						  boost::asio::placeholders::bytes_transferred));
   }
+
+  void handleRead(const boost::system::error_code &ec)
+  {
+    std::cout << "Data available on mq: " << ec.message() << std::endl;
+
+    if (ec)
+    {
+      return;
+    }
+    char buf[MAXBUFLEN];
+    unsigned int prio = 0;
+    
+    int res = mq_receive(mqid, buf, MAXBUFLEN, &prio);
+    std::cout << "RX " << res << " bytes from " << mqid << std::endl;
+    if (res < 0)
+    {
+      std::cout << "Errno is " << strerror(errno) << std::endl;
+    }	
+#if 0
+    if (res > 0)
+    {
+      enif_alloc_binary(res, &r);
+      memcpy(r.data, buf, res);
+      
+      ERL_NIF_TERM priority = enif_make_int(env, prio);
+      ERL_NIF_TERM status = enif_make_atom(env, "ok");
+      ERL_NIF_TERM data =  enif_make_binary(env, &r);
+      return enif_make_tuple3(env, status, priority, data);
+    }
+    else if (errno == EAGAIN)
+    {
+      enif_alloc_binary(0, &r);
+      ERL_NIF_TERM priority = enif_make_int(env, 0);
+      ERL_NIF_TERM status = enif_make_atom(env, "ok");
+      ERL_NIF_TERM data =  enif_make_binary(env, &r);
+      return enif_make_tuple3(env, status, priority, data);
+    }
+    
+    return report_errno_error(env, errno);
+#endif
+  }
+
+  mqd_t getId() const
+  {
+    return mqid;
+  }
   
 private:
   boost::asio::io_service& ioService;
@@ -70,8 +162,7 @@ private:
   mqd_t mqid;
 };
 
-
-#define MAXBUFLEN 1024
+static MessageQueue* queue = nullptr;
 
 static ERL_NIF_TERM report_string_error(ErlNifEnv* env, const char* message)
 {
@@ -90,7 +181,6 @@ extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[]
 {
   char path[MAXBUFLEN];
   char atom_buf[MAXBUFLEN];
-  mqd_t queue;
   int open_flags;
   int read_flag = 0;
   int write_flag = 0;
@@ -98,12 +188,6 @@ extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[]
   ERL_NIF_TERM opts;
   ERL_NIF_TERM val;
 
-  struct mq_attr attr;
-  attr.mq_flags = O_NONBLOCK;
-  attr.mq_maxmsg = 10;
-  attr.mq_msgsize = 256;
-  attr.mq_curmsgs = 0;
-  
   if (!enif_get_string(env, argv[0], path, MAXBUFLEN, ERL_NIF_LATIN1))
   {
     return enif_make_badarg(env);
@@ -115,8 +199,6 @@ extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[]
     return enif_make_badarg(env);
   }
     
-  open_flags = O_NONBLOCK;
-
   while(enif_get_list_cell(env, opts, &val, &opts))
   {
     if (!enif_get_atom(env, val, atom_buf, sizeof(atom_buf), ERL_NIF_LATIN1))
@@ -137,52 +219,51 @@ extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[]
     }
   }
 
+  MessageQueue::OpenFlags flags;
+
   if (read_flag && write_flag)
   {
-    open_flags |= O_RDWR;
+    flags = MessageQueue::OpenFlags::READ_WRITE;
   }
   else if (read_flag)
   {
-    open_flags |= O_RDONLY;
+    flags = MessageQueue::OpenFlags::READ_ONLY;
   }
   else if (write_flag)
   {
-    open_flags |= O_WRONLY;
+    flags = MessageQueue::OpenFlags::WRITE_ONLY;
   }
 
-  if (write_flag)
-  {
-    open_flags |= O_CREAT;
-    queue = mq_open(path, open_flags, S_IRWXU, &attr);
-  }
-  else
-  {
-    queue = mq_open(path, open_flags);
-  }
+  delete queue;
+  queue = nullptr;
   
-  if (queue == -1)
+  try
   {
-    return report_errno_error(env, errno);
-  }
-  else
-  {
-    ERL_NIF_TERM value = enif_make_int(env, queue);
+    queue = new MessageQueue{*io, path, flags};
+    //TODO delete ptr
+
+    ERL_NIF_TERM value = enif_make_int(env, queue->getId());
     ERL_NIF_TERM status = enif_make_atom(env, "ok");
 
+    std::cout << "Open ok: " << queue->getId() << std::endl;
     return enif_make_tuple2(env, status, value);
   }
+  catch(...)
+  {
+    return report_errno_error(env, errno);
+  }  
 }
 
 extern "C" ERL_NIF_TERM _read(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
 {
-  mqd_t queue = -1;
+  mqd_t queueId = -1;
   char buf[MAXBUFLEN];
   ErlNifBinary r;
   ssize_t res;
   unsigned int prio = 0;
 
-  enif_get_int(env, argv[0], &queue);
-  res = mq_receive(queue, buf, MAXBUFLEN, &prio);
+  enif_get_int(env, argv[0], &queueId);
+  res = mq_receive(queueId, buf, MAXBUFLEN, &prio);
 
   if (res > 0)
   {
@@ -233,17 +314,30 @@ extern "C" ERL_NIF_TERM _write(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[
 
 extern "C" ERL_NIF_TERM _close(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
 {
-  mqd_t queue = -1;
+  mqd_t queueId = -1;
   
-  enif_get_int(env, argv[0], &queue);
-  if (mq_close(queue) == 0)
+  enif_get_int(env, argv[0], &queueId);
+  try
+  {
+    auto temp = queue;
+    queue = nullptr;
+    delete temp;
+  }
+  catch(...)
+  {
+    return report_errno_error(env, errno);
+  }
+  return enif_make_atom(env, "ok");
+#if 0
+  if (mq_close(queueId) == 0)
   {
     return enif_make_atom(env, "ok");
   }
   return report_errno_error(env, errno);
+#endif
 }
 
-static boost::asio::io_service* io = nullptr;
+
 static void* thread_func(void* arg)
 {
   try
