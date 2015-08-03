@@ -15,8 +15,8 @@ ifneq ($(OS),Windows_NT)
 	endif
 endif
 
-priv/lib_elixir_mq.so: c_src/lib_elixir_mq.cpp
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
+priv/lib_elixir_mq.so: c_src/lib_elixir_mq.cpp c_src/message_queue.hpp
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $<
 
 clean:
 	$(RM) -r priv/*

@@ -33,6 +33,22 @@ void on_mq_data(const std::vector<uint8_t>& data, int priority)
       return enif_make_tuple3(env, status, priority, data);
 #endif
 }
+
+void on_mq_read_error(int error_number)
+{
+#if 0
+if (errno == EAGAIN)
+    {
+      enif_alloc_binary(0, &r);
+      ERL_NIF_TERM priority = enif_make_int(env, 0);
+      ERL_NIF_TERM status = enif_make_atom(env, "ok");
+      ERL_NIF_TERM data =  enif_make_binary(env, &r);
+      return enif_make_tuple3(env, status, priority, data);
+    }
+    
+    return report_errno_error(env, errno);
+#endif
+}
 };
 
 static MessageQueueNif* queue = nullptr;

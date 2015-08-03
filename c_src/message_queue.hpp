@@ -125,28 +125,10 @@ public:
       std::vector<uint8_t> data;
       static_cast<T*>(this)->on_mq_data(data, prio);
     }
-#if 0
-    if (res > 0)
+    else
     {
-      enif_alloc_binary(res, &r);
-      memcpy(r.data, buf, res);
-      
-      ERL_NIF_TERM priority = enif_make_int(env, prio);
-      ERL_NIF_TERM status = enif_make_atom(env, "ok");
-      ERL_NIF_TERM data =  enif_make_binary(env, &r);
-      return enif_make_tuple3(env, status, priority, data);
+      static_cast<T*>(this)->on_mq_read_error(errno);
     }
-    else if (errno == EAGAIN)
-    {
-      enif_alloc_binary(0, &r);
-      ERL_NIF_TERM priority = enif_make_int(env, 0);
-      ERL_NIF_TERM status = enif_make_atom(env, "ok");
-      ERL_NIF_TERM data =  enif_make_binary(env, &r);
-      return enif_make_tuple3(env, status, priority, data);
-    }
-    
-    return report_errno_error(env, errno);
-#endif
   }
 
   mqd_t getId() const
