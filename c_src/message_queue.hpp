@@ -106,12 +106,12 @@ public:
 
   void handleRead(const boost::system::error_code &ec)
   {
-    std::cout << "Data available on mq: " << ec.message() << std::endl;
-
     if (ec)
     {
+      static_cast<T*>(this)->on_mq_read_error(ec.value());
       return;
     }
+
     char buf[MAXBUFLEN];
     unsigned int prio = 0;
     
@@ -123,7 +123,7 @@ public:
     }
     if (res > 0)
     {
-      std::vector<uint8_t> data;
+      std::vector<uint8_t> data(buf, buf + res);
       static_cast<T*>(this)->on_mq_data(data, prio);
     }
     else

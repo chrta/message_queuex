@@ -16,18 +16,35 @@ defmodule MessageQueueTest do
 
 	test "read empty" do
 		{:ok, fd} = MessageQueue.open @test_filename
-		{:ok, 0, ""} = MessageQueue.read fd
+		:ok = receive do
+			_ -> "Did not expect to receive anything"
+		after
+			1_000 -> :ok
+		end
 		{:error, 'Bad file descriptor'} = MessageQueue.read fd + 1
 		:ok = MessageQueue.close fd
 	end
 
 	test "write and read" do
 		{:ok, fd} = MessageQueue.open @test_filename,  [:read, :write]
-		{:ok, 0, ""} = MessageQueue.read fd
+		:ok = receive do
+			_ -> "Did not expect to receive anything"
+		after
+			1_000 -> :ok
+		end
 		:ok = MessageQueue.write fd, 5, "1234"
 		{:error, 'Bad file descriptor'} = MessageQueue.write fd + 1, 6, "5678"
-		{:ok, 5, "1234"} = MessageQueue.read fd
-		{:ok, 0, ""} = MessageQueue.read fd
+		:ok = receive do
+			{:ok, 5, "1234"} -> :ok
+			_ -> {:error, "Received unexpected stuff"}
+		after
+			1_000 -> {:error, "Receive timeout"}
+		end
+		:ok = receive do
+			_ -> {:error, "Did not expect to receive anything"}
+		after
+			1_000 -> :ok
+		end
 		:ok = MessageQueue.close fd
 	end
 

@@ -14,6 +14,8 @@
 
 static boost::asio::io_service* io = nullptr;
 
+static ErlNifPid* dst = nullptr;
+
 class MessageQueueNif : public MessageQueue<MessageQueueNif>
 {
 public:
@@ -23,31 +25,24 @@ MessageQueueNif(boost::asio::io_service& ioService, const std::string& queueName
 
 void on_mq_data(const std::vector<uint8_t>& data, int priority)
 {
-#if 0
-      enif_alloc_binary(res, &r);
-      memcpy(r.data, buf, res);
-      
-      ERL_NIF_TERM priority = enif_make_int(env, prio);
-      ERL_NIF_TERM status = enif_make_atom(env, "ok");
-      ERL_NIF_TERM data =  enif_make_binary(env, &r);
-      return enif_make_tuple3(env, status, priority, data);
-#endif
+    std::cout << "on_mq_data" << data.size() << " bytes, prio " << priority << std::endl;
+    if (!dst)
+    {
+        return;
+    }
+    ErlNifEnv* env = enif_alloc_env();
+
+    nifpp::binary bin_data(data.size());
+    std::copy(data.begin(), data.end(), bin_data.data);
+    nifpp::TERM message = nifpp::make(env, std::make_tuple(nifpp::make(env, nifpp::str_atom("ok")), nifpp::make(env, priority), nifpp::make(env, bin_data)));
+    enif_send(NULL, dst, env, message);
+    enif_free_env(env);
 }
 
 void on_mq_read_error(int error_number)
 {
-#if 0
-if (errno == EAGAIN)
-    {
-      enif_alloc_binary(0, &r);
-      ERL_NIF_TERM priority = enif_make_int(env, 0);
-      ERL_NIF_TERM status = enif_make_atom(env, "ok");
-      ERL_NIF_TERM data =  enif_make_binary(env, &r);
-      return enif_make_tuple3(env, status, priority, data);
-    }
-    
-    return report_errno_error(env, errno);
-#endif
+    std::cout << "on_mq_read_error " << strerror(error_number) << std::endl;
+    //do not report read errors to the user
 }
 };
 
@@ -117,10 +112,14 @@ extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM ar
 
   delete queue;
   queue = nullptr;
+  delete dst;
+  dst = nullptr;
   
   try
   {
     queue = new MessageQueueNif{*io, path, flags};
+    dst = new ErlNifPid;
+    enif_self(env, dst);
     //TODO delete ptr
 
     std::cout << "Open ok: " << queue->getId() << std::endl;
@@ -134,6 +133,7 @@ extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM ar
 
 extern "C" ERL_NIF_TERM _read(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM argv[])
 {
+#if 0
   mqd_t queueId = -1;
   char buf[MAXBUFLEN];
   ErlNifBinary r;
@@ -161,8 +161,8 @@ extern "C" ERL_NIF_TERM _read(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM ar
     ERL_NIF_TERM data =  enif_make_binary(env, &r);
     return enif_make_tuple3(env, status, priority, data);
   }
-
-  return report_errno_error(env, errno);
+#endif
+  return report_errno_error(env, /*errno*/ 9);
 }
 
 extern "C" ERL_NIF_TERM _write(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM argv[])
