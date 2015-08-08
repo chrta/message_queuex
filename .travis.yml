@@ -11,5 +11,14 @@ otp_release:
 
 env:
   matrix:
-    - CC=clang
-    - CC=gcc
+    - CXX=clang++
+    - CXX=g++-4.9
+
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - gcc-4.9
+      - g++-4.9
+      - clang
