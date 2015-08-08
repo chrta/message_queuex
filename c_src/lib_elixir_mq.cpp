@@ -53,12 +53,9 @@ if (errno == EAGAIN)
 
 static MessageQueueNif* queue = nullptr;
 
-static ERL_NIF_TERM report_string_error(ErlNifEnv* env, const char* message)
-{
-  ERL_NIF_TERM text = enif_make_string(env, message, ERL_NIF_LATIN1);
-  ERL_NIF_TERM status = enif_make_atom(env, "error");
-  
-  return enif_make_tuple2(env, status, text);
+static ERL_NIF_TERM report_string_error(ErlNifEnv* env, const std::string& message)
+{ 
+  return nifpp::make(env, std::make_tuple(nifpp::str_atom("error"), message));
 }
 
 static ERL_NIF_TERM report_errno_error(ErlNifEnv* env, int error_number)
@@ -68,16 +65,14 @@ static ERL_NIF_TERM report_errno_error(ErlNifEnv* env, int error_number)
 
 extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
 {
-  char path[MAXBUFLEN];
-  char atom_buf[MAXBUFLEN];
-  int open_flags;
-  int read_flag = 0;
-  int write_flag = 0;
+  std::string path;
+  bool read_flag = false;
+  bool write_flag = false;
   
   ERL_NIF_TERM opts;
   ERL_NIF_TERM val;
 
-  if (!enif_get_string(env, argv[0], path, MAXBUFLEN, ERL_NIF_LATIN1))
+  if (!nifpp::get(env, argv[0], path))
   {
     return enif_make_badarg(env);
   }
@@ -87,28 +82,30 @@ extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[]
   {
     return enif_make_badarg(env);
   }
-    
-  while(enif_get_list_cell(env, opts, &val, &opts))
+
+  std::vector<nifpp::str_atom> open_flags;
+  if (!nifpp::get(env, opts, open_flags))
   {
-    if (!enif_get_atom(env, val, atom_buf, sizeof(atom_buf), ERL_NIF_LATIN1))
-    {
-      return enif_make_badarg(env);
-    }
-    if (strcmp("read", atom_buf) == 0)
-    {
-      read_flag = 1;
-    }
-    else if (strcmp("write", atom_buf) == 0)
-    {
-      write_flag = 1;
-    }
-    else
-    {
-      return enif_make_badarg(env);
-    }
+    return enif_make_badarg(env);
   }
 
-  MessageQueueNif::OpenFlags flags;
+  for (auto atom : open_flags)
+  {
+      if (atom == "read")
+      {
+        read_flag = true;
+      }
+      else if (atom == "write")
+      {
+        write_flag = true;
+      }
+      else
+      {
+        return enif_make_badarg(env);
+      }
+  }
+
+  MessageQueueNif::OpenFlags flags = MessageQueueNif::OpenFlags::INVALID;
 
   if (read_flag && write_flag)
   {
@@ -131,11 +128,8 @@ extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[]
     queue = new MessageQueueNif{*io, path, flags};
     //TODO delete ptr
 
-    ERL_NIF_TERM value = enif_make_int(env, queue->getId());
-    ERL_NIF_TERM status = enif_make_atom(env, "ok");
-
     std::cout << "Open ok: " << queue->getId() << std::endl;
-    return enif_make_tuple2(env, status, value);
+    return nifpp::make(env, std::make_tuple(nifpp::str_atom("ok"), queue->getId()));
   }
   catch(...)
   {

@@ -2,6 +2,7 @@
 
 #include <boost/bind.hpp>
 #include <boost/asio.hpp>
+#include <iostream>
 
 #include <mqueue.h>
 
@@ -18,7 +19,7 @@ class MessageQueue
 {
 public:
 
-  enum class OpenFlags {READ_ONLY, WRITE_ONLY, READ_WRITE};
+  enum class OpenFlags {READ_ONLY, WRITE_ONLY, READ_WRITE, INVALID};
   
   MessageQueue(boost::asio::io_service& ioService, const std::string& queueName, OpenFlags flags)
     : ioService(ioService),
