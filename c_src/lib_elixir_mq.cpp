@@ -63,14 +63,13 @@ static ERL_NIF_TERM report_errno_error(ErlNifEnv* env, int error_number)
   return report_string_error(env, strerror(error_number));
 }
 
-extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
+extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM argv[])
 {
   std::string path;
   bool read_flag = false;
   bool write_flag = false;
   
   ERL_NIF_TERM opts;
-  ERL_NIF_TERM val;
 
   if (!nifpp::get(env, argv[0], path))
   {
@@ -78,10 +77,6 @@ extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[]
   }
   
   opts = argv[1];
-  if (!enif_is_list(env, opts))
-  {
-    return enif_make_badarg(env);
-  }
 
   std::vector<nifpp::str_atom> open_flags;
   if (!nifpp::get(env, opts, open_flags))
@@ -137,7 +132,7 @@ extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[]
   }  
 }
 
-extern "C" ERL_NIF_TERM _read(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
+extern "C" ERL_NIF_TERM _read(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM argv[])
 {
   mqd_t queueId = -1;
   char buf[MAXBUFLEN];
@@ -170,7 +165,7 @@ extern "C" ERL_NIF_TERM _read(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[]
   return report_errno_error(env, errno);
 }
 
-extern "C" ERL_NIF_TERM _write(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
+extern "C" ERL_NIF_TERM _write(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM argv[])
 {
   ErlNifBinary data;
   int result;
@@ -195,7 +190,7 @@ extern "C" ERL_NIF_TERM _write(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[
 }
 
 
-extern "C" ERL_NIF_TERM _close(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[])
+extern "C" ERL_NIF_TERM _close(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM argv[])
 {
   mqd_t queueId = -1;
   
@@ -221,7 +216,7 @@ extern "C" ERL_NIF_TERM _close(ErlNifEnv* env, int arc, const ERL_NIF_TERM argv[
 }
 
 
-static void* thread_func(void* arg)
+static void* thread_func(void* /*arg*/)
 {
   try
   {
@@ -249,9 +244,9 @@ static ErlNifTid tid;
 
 extern "C" int load(ErlNifEnv* /*env*/, void** /*priv*/, ERL_NIF_TERM /*load_info*/)
 {
-  thread_opts = enif_thread_opts_create("thread_opts");
+  thread_opts = enif_thread_opts_create(const_cast<char*>("thread_opts"));
 
-  if (enif_thread_create("", &tid, thread_func, nullptr, thread_opts) != 0)
+  if (enif_thread_create(const_cast<char*>(""), &tid, thread_func, nullptr, thread_opts) != 0)
   {
     return -1;
   }
