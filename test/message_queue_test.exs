@@ -3,7 +3,7 @@ defmodule MessageQueueTest do
 
 	@test_filename "/mq_test.tmp"
 
-	# Crate the message queue, if it does not exist
+	# Create the message queue, if it does not exist
 	setup do
 		{:ok, fd} = MessageQueue.open @test_filename,  [:read, :write]
 		:ok = MessageQueue.close fd
@@ -47,6 +47,4 @@ defmodule MessageQueueTest do
 		end
 		:ok = MessageQueue.close fd
 	end
-
-
 end
