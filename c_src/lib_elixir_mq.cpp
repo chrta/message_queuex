@@ -24,8 +24,6 @@ public:
 
     void on_mq_data(const std::vector<uint8_t>& data, int priority)
     {
-        std::cout << "on_mq_data " << data.size() << " bytes, prio " << priority << std::endl;
-
         ErlNifEnv* env = enif_alloc_env();
 
         nifpp::binary bin_data(data.size());

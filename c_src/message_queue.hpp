@@ -50,8 +50,6 @@ public:
             mqid = mq_open(queueName.c_str(), open_flags, S_IREAD | S_IWRITE, &mattr);
         }
 
-        std::cout << "message queue mqid = " << mqid << std::endl;
-
         if (mqid == -1)
         {
             std::cerr << "Failed to open queue with error: " << strerror(errno) << std::endl;
@@ -59,14 +57,7 @@ public:
         }
 
         streamDescriptor.assign(mqid);
-#if 0
-        streamDescriptor.async_write_some(
-                    boost::asio::null_buffers(),
-                    boost::bind(&MessageQueue::handleWrite,
-                                this,
-                                boost::asio::placeholders::error,
-                                boost::asio::placeholders::bytes_transferred));
-#endif
+
         streamDescriptor.async_read_some(
                     boost::asio::null_buffers(),
                     boost::bind(&MessageQueue::handleRead,
@@ -87,29 +78,12 @@ public:
         {
             return;
         }
-        std::cout << "handleWrite start " << write_data.size() << " bytes" << std::endl;
+
         int sendRet = mq_send(mqid, reinterpret_cast<const char*>(write_data.data()), write_data.size(), write_priority);
         write_data.clear();
         std::cout << "sendRet = " << sendRet << std::endl;
-//        timer.expires_from_now(boost::posix_time::microseconds(100));
-//        timer.async_wait(boost::bind(&MessageQueue::handleTimer, this,
-//                                     boost::asio::placeholders::error));
     }
-#if 0
-    void handleTimer(const boost::system::error_code& ec)
-    {
-        message msg;
-        int sendRet = mq_send(mqid, (const char*)&msg, sizeof(message), 0);
-        std::cout << "sendRet = " << sendRet << std::endl;
 
-        streamDescriptor.async_write_some(
-                    boost::asio::null_buffers(),
-                    boost::bind(&MessageQueue::handleWrite,
-                                this,
-                                boost::asio::placeholders::error,
-                                boost::asio::placeholders::bytes_transferred));
-    }
-#endif
     void handleRead(const boost::system::error_code &ec)
     {
         if (ec)
@@ -122,11 +96,7 @@ public:
         unsigned int prio = 0;
 
         int res = mq_receive(mqid, buf, MAXBUFLEN, &prio);
-        std::cout << "RX " << res << " bytes from " << mqid << std::endl;
-        if (res < 0)
-        {
-            std::cout << "Errno is " << strerror(errno) << std::endl;
-        }
+
         if (res > 0)
         {
             std::vector<uint8_t> data(buf, buf + res);
@@ -145,11 +115,10 @@ public:
 
     void write(const std::vector<uint8_t> data, int priority)
     {
-        std::cout << "write start " << data.size() << " bytes" << std::endl;
         //TODO SYNC!!
         write_data = data;
         write_priority = priority;
-        //ioService.post(boost::bind(&MessageQueue::do_write, this, data, priority));
+
         streamDescriptor.async_write_some(
                     boost::asio::null_buffers(),
                     boost::bind(&MessageQueue::handleWrite,
@@ -165,13 +134,9 @@ public:
 
 private:
 
-    void do_write(const boost::system::error_code &ec, const std::vector<uint8_t> data, int priority)
-    {
-        std::cout << "Do write " << data.size() << " bytes with prio " << priority << std::endl;
-    }
-
     void do_close()
     {
+        streamDescriptor.cancel();
         if (mqid >= 0)
         {
             mq_close(mqid);
