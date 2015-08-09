@@ -19,15 +19,18 @@ class MessageQueueNif : public MessageQueue<MessageQueueNif>
 public:
     MessageQueueNif(boost::asio::io_service& ioService, const std::string& queueName, OpenFlags flags, ErlNifPid pid)
         : MessageQueue(ioService, queueName, flags)
+        , owner(pid)
     {}
 
     void on_mq_data(const std::vector<uint8_t>& data, int priority)
     {
-        std::cout << "on_mq_data" << data.size() << " bytes, prio " << priority << std::endl;
+        std::cout << "on_mq_data " << data.size() << " bytes, prio " << priority << std::endl;
+
         ErlNifEnv* env = enif_alloc_env();
 
         nifpp::binary bin_data(data.size());
         std::copy(data.begin(), data.end(), bin_data.data);
+        //Todo add the queue id to be able to later identify the queue
         nifpp::TERM message = nifpp::make(env, std::make_tuple(nifpp::make(env, nifpp::str_atom("ok")), nifpp::make(env, priority), nifpp::make(env, bin_data)));
         enif_send(NULL, &owner, env, message);
         enif_free_env(env);
@@ -43,7 +46,7 @@ private:
     ErlNifPid owner;
 };
 
-static MessageQueueNif* queue = nullptr;
+static std::map<int, std::unique_ptr<MessageQueueNif>> queues;
 
 static ERL_NIF_TERM report_string_error(ErlNifEnv* env, const std::string& message)
 { 
@@ -107,17 +110,16 @@ extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM ar
         flags = MessageQueueNif::OpenFlags::WRITE_ONLY;
     }
 
-    delete queue;
-    queue = nullptr;
     ErlNifPid owner;
     enif_self(env, &owner);
     try
     {
-        queue = new MessageQueueNif{*io, path, flags, owner};
-        //TODO delete ptr
+        auto queue = std::make_unique<MessageQueueNif>(*io, path, flags, owner);
+        auto queueId = queue->getId();
+        queues[queueId] = std::move(queue);
 
-        std::cout << "Open ok: " << queue->getId() << std::endl;
-        return nifpp::make(env, std::make_tuple(nifpp::str_atom("ok"), queue->getId()));
+        std::cout << "Open ok: " << queueId << std::endl;
+        return nifpp::make(env, std::make_tuple(nifpp::str_atom("ok"), queueId));
     }
     catch(...)
     {
@@ -161,11 +163,16 @@ extern "C" ERL_NIF_TERM _read(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM ar
 
 extern "C" ERL_NIF_TERM _write(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM argv[])
 {
-    if (!queue)
+    mqd_t queueId = -1;
+    if (!enif_get_int(env, argv[0], &queueId))
+    {
+        return enif_make_badarg(env);
+    }
+
+    if (queues.find(queueId) == queues.end())
     {
         return report_errno_error(env, EBADF);
     }
-
 
     int priority = 0;
     if (!nifpp::get(env, argv[1], priority))
@@ -178,30 +185,11 @@ extern "C" ERL_NIF_TERM _write(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM a
     {
         return enif_make_badarg(env);
     }
+
     std::vector<uint8_t> data(bin_data.data, bin_data.data+ bin_data.size);
-    queue->write(data, priority);
-#if 0
-    ErlNifBinary data;
-    int result;
-    mqd_t queue = -1;
-    unsigned int prio = 0;
+    queues[queueId]->write(data, priority);
 
-    enif_get_int(env, argv[0], &queue);
-    enif_get_uint(env, argv[1], &prio);
-    if (!enif_inspect_binary(env, argv[2], &data))
-    {
-        return report_string_error(env, "Error converting given data into binary");
-    }
-
-    result = mq_send(queue, (char*) data.data, data.size, prio);
-
-    if (result == 0)
-    {
-        return enif_make_atom(env, "ok");
-    }
-
-    return report_errno_error(env, errno);
-#endif
+    return enif_make_atom(env, "ok");
 }
 
 
@@ -209,12 +197,19 @@ extern "C" ERL_NIF_TERM _close(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM a
 {
     mqd_t queueId = -1;
 
-    enif_get_int(env, argv[0], &queueId);
+    if (!enif_get_int(env, argv[0], &queueId))
+    {
+        return enif_make_badarg(env);
+    }
+
+    if (queues.find(queueId) == queues.end())
+    {
+        return report_errno_error(env, EBADF);
+    }
+
     try
     {
-        auto temp = queue;
-        queue = nullptr;
-        delete temp;
+        queues.erase(queueId);
     }
     catch(...)
     {
@@ -241,6 +236,7 @@ static void* thread_func(void* /*arg*/)
         boost::asio::io_service::work work(io_service);
         //Reader reader(ioService);
         io_service.run();
+        queues.clear();
         io = nullptr;
         std::cout << "Asio exit ok" << std::endl;
     }
@@ -275,6 +271,7 @@ extern "C" void unload(ErlNifEnv* /*env*/, void* /*priv*/)
 
     if (io)
     {
+        queues.clear();
         io->stop();
     }
 

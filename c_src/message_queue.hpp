@@ -59,14 +59,14 @@ public:
         }
 
         streamDescriptor.assign(mqid);
-
+#if 0
         streamDescriptor.async_write_some(
                     boost::asio::null_buffers(),
                     boost::bind(&MessageQueue::handleWrite,
                                 this,
                                 boost::asio::placeholders::error,
                                 boost::asio::placeholders::bytes_transferred));
-
+#endif
         streamDescriptor.async_read_some(
                     boost::asio::null_buffers(),
                     boost::bind(&MessageQueue::handleRead,
@@ -80,13 +80,22 @@ public:
         do_close();
     }
 
-    void handleWrite(const boost::system::error_code &ec, std::size_t bytes_transferred)
+    void handleWrite(const boost::system::error_code &/*ec*/, std::size_t /*bytes_transferred*/)
     {
-        timer.expires_from_now(boost::posix_time::microseconds(100));
-        timer.async_wait(boost::bind(&MessageQueue::handleTimer, this,
-                                     boost::asio::placeholders::error));
+        //now the mq is writable
+        if (write_data.empty())
+        {
+            return;
+        }
+        std::cout << "handleWrite start " << write_data.size() << " bytes" << std::endl;
+        int sendRet = mq_send(mqid, reinterpret_cast<const char*>(write_data.data()), write_data.size(), write_priority);
+        write_data.clear();
+        std::cout << "sendRet = " << sendRet << std::endl;
+//        timer.expires_from_now(boost::posix_time::microseconds(100));
+//        timer.async_wait(boost::bind(&MessageQueue::handleTimer, this,
+//                                     boost::asio::placeholders::error));
     }
-
+#if 0
     void handleTimer(const boost::system::error_code& ec)
     {
         message msg;
@@ -100,7 +109,7 @@ public:
                                 boost::asio::placeholders::error,
                                 boost::asio::placeholders::bytes_transferred));
     }
-
+#endif
     void handleRead(const boost::system::error_code &ec)
     {
         if (ec)
@@ -136,6 +145,10 @@ public:
 
     void write(const std::vector<uint8_t> data, int priority)
     {
+        std::cout << "write start " << data.size() << " bytes" << std::endl;
+        //TODO SYNC!!
+        write_data = data;
+        write_priority = priority;
         //ioService.post(boost::bind(&MessageQueue::do_write, this, data, priority));
         streamDescriptor.async_write_some(
                     boost::asio::null_buffers(),
@@ -171,4 +184,7 @@ private:
     boost::asio::posix::stream_descriptor streamDescriptor;
     boost::asio::deadline_timer timer;
     mqd_t mqid;
+
+    std::vector<uint8_t> write_data;
+    int write_priority;
 };
