@@ -35,7 +35,7 @@ defmodule MessageQueueTest do
 		:ok = MessageQueue.write fd, 5, "1234"
 		{:error, 'Bad file descriptor'} = MessageQueue.write fd + 1, 6, "5678"
 		:ok = receive do
-			{:ok, 5, "1234"} -> :ok
+			{:mq, fd, 5, "1234"} -> :ok
 			_ -> {:error, "Received unexpected stuff"}
 		after
 			1_000 -> {:error, "Receive timeout"}

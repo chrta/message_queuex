@@ -30,8 +30,11 @@ public:
 
         nifpp::binary bin_data(data.size());
         std::copy(data.begin(), data.end(), bin_data.data);
-        //Todo add the queue id to be able to later identify the queue
-        nifpp::TERM message = nifpp::make(env, std::make_tuple(nifpp::make(env, nifpp::str_atom("ok")), nifpp::make(env, priority), nifpp::make(env, bin_data)));
+
+        nifpp::TERM message = nifpp::make(env, std::make_tuple(nifpp::make(env, nifpp::str_atom("mq")),
+                                                               nifpp::make(env, getId()),
+                                                               nifpp::make(env, priority),
+                                                               nifpp::make(env, bin_data)));
         enif_send(NULL, &owner, env, message);
         enif_free_env(env);
     }
