@@ -36,9 +36,9 @@ public:
         enif_free_env(env);
     }
 
-    void on_mq_read_error(int error_number)
+    void on_mq_read_error(int /*error_number*/)
     {
-        std::cout << "on_mq_read_error " << strerror(error_number) << std::endl;
+        //std::cout << "on_mq_read_error " << strerror(error_number) << std::endl;
         //do not report read errors to the user
     }
 
@@ -118,7 +118,6 @@ extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM ar
         auto queueId = queue->getId();
         queues[queueId] = std::move(queue);
 
-        std::cout << "Open ok: " << queueId << std::endl;
         return nifpp::make(env, std::make_tuple(nifpp::str_atom("ok"), queueId));
     }
     catch(...)
@@ -164,7 +163,7 @@ extern "C" ERL_NIF_TERM _read(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM ar
 extern "C" ERL_NIF_TERM _write(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM argv[])
 {
     mqd_t queueId = -1;
-    if (!enif_get_int(env, argv[0], &queueId))
+    if (!nifpp::get(env, argv[0], queueId))
     {
         return enif_make_badarg(env);
     }
@@ -189,7 +188,7 @@ extern "C" ERL_NIF_TERM _write(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM a
     std::vector<uint8_t> data(bin_data.data, bin_data.data+ bin_data.size);
     queues[queueId]->write(data, priority);
 
-    return enif_make_atom(env, "ok");
+    return nifpp::make(env, nifpp::str_atom("ok"));
 }
 
 
@@ -197,7 +196,7 @@ extern "C" ERL_NIF_TERM _close(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM a
 {
     mqd_t queueId = -1;
 
-    if (!enif_get_int(env, argv[0], &queueId))
+    if (!nifpp::get(env, argv[0], queueId))
     {
         return enif_make_badarg(env);
     }
@@ -215,14 +214,7 @@ extern "C" ERL_NIF_TERM _close(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM a
     {
         return report_errno_error(env, errno);
     }
-    return enif_make_atom(env, "ok");
-#if 0
-    if (mq_close(queueId) == 0)
-    {
-        return enif_make_atom(env, "ok");
-    }
-    return report_errno_error(env, errno);
-#endif
+    return nifpp::make(env, nifpp::str_atom("ok"));
 }
 
 
