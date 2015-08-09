@@ -2,6 +2,8 @@
 
 #include <boost/bind.hpp>
 #include <boost/asio.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/thread/condition_variable.hpp>
 #include <iostream>
 
 #include <mqueue.h>
@@ -24,7 +26,6 @@ public:
     MessageQueue(boost::asio::io_service& ioService, const std::string& queueName, OpenFlags flags)
         : ioService(ioService),
           streamDescriptor(ioService),
-          timer(ioService),
           mqid(-1)
     {
         if (flags == OpenFlags::READ_ONLY)
@@ -67,8 +68,9 @@ public:
 
     ~MessageQueue()
     {
-        //TODO handle it in the io service, otherwise race condition
-        do_close();
+        boost::unique_lock<boost::mutex> lock(mutex);
+        close();
+        cond.wait(lock);
     }
 
     void handleWrite(const boost::system::error_code &/*ec*/, std::size_t /*bytes_transferred*/)
@@ -142,12 +144,14 @@ private:
             mq_close(mqid);
             mqid = -1;
         }
+        cond.notify_all();
     }
 
 
     boost::asio::io_service& ioService;
     boost::asio::posix::stream_descriptor streamDescriptor;
-    boost::asio::deadline_timer timer;
+    boost::mutex mutex;
+    boost::condition_variable cond;
     mqd_t mqid;
 
     std::vector<uint8_t> write_data;

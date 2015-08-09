@@ -3,7 +3,7 @@ ERLANG_PATH = $(shell erl -eval 'io:format("~s", [lists:concat([code:root_dir(),
 CFLAGS = -g -O3 -ansi -pedantic -Wall -Wextra -I$(ERLANG_PATH)
 CXXFLAGS = $(CFLAGS) -std=c++14
 
-LDFLAGS += -lboost_system
+LDFLAGS += -lboost_system -lboost_thread
 
 ifneq ($(OS),Windows_NT)
 	CFLAGS += -fPIC
