@@ -23,7 +23,7 @@ public:
 
     enum class OpenFlags {READ_ONLY, WRITE_ONLY, READ_WRITE, INVALID};
 
-    MessageQueue(boost::asio::io_service& ioService, const std::string& queueName, OpenFlags flags)
+    MessageQueue(boost::asio::io_service& ioService, const std::string& queueName, OpenFlags flags, long maximum_message_count = 0, size_t message_size = 0)
         : ioService(ioService),
           streamDescriptor(ioService),
           mqid(-1)
@@ -36,8 +36,8 @@ public:
         {
             int open_flags = O_CREAT | O_NONBLOCK;
             struct mq_attr mattr;
-            mattr.mq_maxmsg = 10;
-            mattr.mq_msgsize = sizeof(struct message);
+            mattr.mq_maxmsg = maximum_message_count;
+            mattr.mq_msgsize = message_size;
 
             if (flags == OpenFlags::WRITE_ONLY)
             {
@@ -82,8 +82,22 @@ public:
         }
 
         int sendRet = mq_send(mqid, reinterpret_cast<const char*>(write_data.data()), write_data.size(), write_priority);
-        write_data.clear();
-        std::cout << "sendRet = " << sendRet << std::endl;
+        if (sendRet == 0)
+        {
+            write_data.clear();
+            return;
+        }
+
+        std::cerr << "Sending to mq failed: " << strerror(errno) << std::endl;
+
+        //Sending failed, try again
+        streamDescriptor.async_write_some(
+                    boost::asio::null_buffers(),
+                    boost::bind(&MessageQueue::handleWrite,
+                                this,
+                                boost::asio::placeholders::error,
+                                boost::asio::placeholders::bytes_transferred));
+
     }
 
     void handleRead(const boost::system::error_code &ec)

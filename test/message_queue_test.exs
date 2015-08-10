@@ -1,21 +1,21 @@
 defmodule MessageQueueTest do
   use ExUnit.Case
 
-	@test_filename "/mq_test.tmp"
+	@test_queuename "/mq_test.tmp"
 
 	# Create the message queue, if it does not exist
 	setup do
-		{:ok, fd} = MessageQueue.open @test_filename,  [:read, :write]
+		{:ok, fd} = MessageQueue.open @test_queuename,  [:read, :write], {10, 10}
 		:ok = MessageQueue.close fd
   end
 
 	test "open and close" do
-		{:ok, fd} = MessageQueue.open @test_filename
+		{:ok, fd} = MessageQueue.open @test_queuename
 		:ok = MessageQueue.close fd
 	end
 
 	test "read empty" do
-		{:ok, fd} = MessageQueue.open @test_filename
+		{:ok, fd} = MessageQueue.open @test_queuename
 		:ok = receive do
 			_ -> "Did not expect to receive anything"
 		after
@@ -26,7 +26,7 @@ defmodule MessageQueueTest do
 	end
 
 	test "write and read" do
-		{:ok, fd} = MessageQueue.open @test_filename,  [:read, :write]
+		{:ok, fd} = MessageQueue.open @test_queuename,  [:read, :write], {10, 10}
 		:ok = receive do
 			_ -> "Did not expect to receive anything"
 		after

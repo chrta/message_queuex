@@ -1,9 +1,9 @@
 defmodule MessageQueue do
   alias MessageQueue.Nif, as: Nif
   
-  @spec open(String.t, [atom]) :: {atom, integer}
-  def open(mq_file, options \\ [:read]) do
-    Nif.open(mq_file, options)
+  @spec open(String.t, [atom], {integer, integer}) :: {atom, integer}
+  def open(mq_file, flags \\ [:read], sizes \\ {}) do
+    Nif.open(mq_file, flags, sizes)
   end
 
   @spec read(integer) :: {atom, integer, bitstring}

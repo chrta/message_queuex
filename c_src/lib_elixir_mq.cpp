@@ -17,8 +17,8 @@ static boost::asio::io_service* io = nullptr;
 class MessageQueueNif : public MessageQueue<MessageQueueNif>
 {
 public:
-    MessageQueueNif(boost::asio::io_service& ioService, const std::string& queueName, OpenFlags flags, ErlNifPid pid)
-        : MessageQueue(ioService, queueName, flags)
+    MessageQueueNif(boost::asio::io_service& ioService, const std::string& queueName, OpenFlags flags, long maximum_message_count, size_t message_size, ErlNifPid pid)
+        : MessageQueue(ioService, queueName, flags, maximum_message_count, message_size)
         , owner(pid)
     {}
 
@@ -64,6 +64,8 @@ extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM ar
     std::string path;
     bool read_flag = false;
     bool write_flag = false;
+    long maximum_message_count = 0;
+    size_t message_size = 0;
 
     ERL_NIF_TERM opts;
 
@@ -96,6 +98,25 @@ extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM ar
         }
     }
 
+    if (write_flag)
+    {
+        std::tuple<int, int> sizes;
+        if (!nifpp::get(env, argv[2], sizes))
+        {
+            return enif_make_badarg(env);
+        }
+
+        if (std::get<0>(sizes) >= 0)
+        {
+            maximum_message_count = std::get<0>(sizes);
+        }
+
+        if (std::get<1>(sizes) >= 0)
+        {
+            message_size = std::get<0>(sizes);
+        }
+    }
+
     MessageQueueNif::OpenFlags flags = MessageQueueNif::OpenFlags::INVALID;
 
     if (read_flag && write_flag)
@@ -115,7 +136,7 @@ extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM ar
     enif_self(env, &owner);
     try
     {
-        auto queue = std::make_unique<MessageQueueNif>(*io, path, flags, owner);
+        auto queue = std::make_unique<MessageQueueNif>(*io, path, flags, maximum_message_count, message_size, owner);
         auto queueId = queue->getId();
         queues[queueId] = std::move(queue);
 
@@ -276,7 +297,7 @@ extern "C" void unload(ErlNifEnv* /*env*/, void* /*priv*/)
 
 ErlNifFunc nif_funcs[] =
 {
-    {"_open",  2, _open,  0},
+    {"_open",  3, _open,  0},
     {"_read",  1, _read,  0},
     {"_write", 3, _write, 0},
     {"_close", 1, _close, 0}

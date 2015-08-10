@@ -7,9 +7,9 @@ defmodule MessageQueue.Nif do
   end
 
 	# options [:read, :write]
-  @spec open(String.t, [atom]) :: {atom, integer}
-  def open(mq_file, options) do
-    _open(String.to_char_list(mq_file), options)
+  @spec open(String.t, [atom], {integer, integer}) :: {atom, integer}
+  def open(mq_file, flags, sizes) do
+    _open(String.to_char_list(mq_file), flags, sizes)
   end
 
   @spec read(integer) :: {atom, integer, bitstring}
@@ -27,7 +27,7 @@ defmodule MessageQueue.Nif do
     _close(fd)
   end
 
-  def _open(mq_file, options) do
+  def _open(mq_file, flags, sizes) do
     :erlang.nif_error("NIF library not loaded")
   end
 
