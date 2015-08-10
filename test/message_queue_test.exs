@@ -112,4 +112,21 @@ defmodule MessageQueueTest do
 		
 		:ok = MessageQueue.close fd
 	end
+
+	test "parallel write" do
+		{:ok, fd} = MessageQueue.open @test_queuename,  [:read, :write], {10, 10}
+		Enum.each(1..1_000, fn(x) ->
+			spawn(fn() ->
+				:ok = MessageQueue.write fd, x, "#{x}"
+			end)
+		end)
+		Enum.map(1..1_000, fn(_) ->
+			:ok = receive do
+				{:mq, fd, prio, data} -> :ok
+			after
+				100 -> :error
+			end
+		end)
+		:ok = MessageQueue.close fd
+	end
 end
