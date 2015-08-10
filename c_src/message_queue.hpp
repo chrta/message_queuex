@@ -5,6 +5,7 @@
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/condition_variable.hpp>
 #include <iostream>
+#include <queue>
 
 #include <mqueue.h>
 
@@ -76,19 +77,38 @@ public:
     void handleWrite(const boost::system::error_code &/*ec*/, std::size_t /*bytes_transferred*/)
     {
         //now the mq is writable
-        if (write_data.empty())
+        if (send_queue.empty())
         {
             return;
         }
 
-        int sendRet = mq_send(mqid, reinterpret_cast<const char*>(write_data.data()), write_data.size(), write_priority);
-        if (sendRet == 0)
+        boost::unique_lock<boost::mutex> lock(mutex);
+        QueueData write_data = send_queue.top();
+        send_queue.pop();
+        lock.unlock();
+
+        int sendRet = mq_send(mqid, reinterpret_cast<const char*>(write_data.data.data()), write_data.data.size(), write_data.priority);
+        int error = errno;
+        if (sendRet)
         {
-            write_data.clear();
-            return;
+            std::cerr << "Sending to mq failed: " << strerror(error) << std::endl;
+
+            if (errno == EMSGSIZE)
+            {
+                //Message is too big, discard it
+            }
+            else
+            {
+                lock.lock();
+                send_queue.push(write_data);
+                lock.unlock();
+            }
         }
 
-        std::cerr << "Sending to mq failed: " << strerror(errno) << std::endl;
+        if (send_queue.empty())
+        {
+            return;
+        }
 
         //Sending failed, try again
         streamDescriptor.async_write_some(
@@ -122,6 +142,12 @@ public:
         {
             static_cast<T*>(this)->on_mq_read_error(errno);
         }
+
+        streamDescriptor.async_read_some(
+                    boost::asio::null_buffers(),
+                    boost::bind(&MessageQueue::handleRead,
+                                this,
+                                boost::asio::placeholders::error));
     }
 
     mqd_t getId() const
@@ -129,11 +155,12 @@ public:
         return mqid;
     }
 
-    void write(const std::vector<uint8_t> data, int priority)
+    void write(std::vector<uint8_t>&& data, int priority)
     {
-        //TODO SYNC!!
-        write_data = data;
-        write_priority = priority;
+        {
+            boost::unique_lock<boost::mutex> lock(mutex);
+            send_queue.emplace(priority, std::move(data));
+        }
 
         streamDescriptor.async_write_some(
                     boost::asio::null_buffers(),
@@ -168,6 +195,23 @@ private:
     boost::condition_variable cond;
     mqd_t mqid;
 
-    std::vector<uint8_t> write_data;
-    int write_priority;
+    struct QueueData
+    {
+        QueueData(unsigned int priority, std::vector<uint8_t>&& data)
+            : data(data)
+            , priority(priority)
+        {}
+
+        bool operator<(const QueueData& rhs) const
+        {
+            return priority < rhs.priority;
+        }
+
+
+        std::vector<uint8_t> data;
+        unsigned int priority;
+
+    };
+
+    std::priority_queue<QueueData> send_queue;
 };

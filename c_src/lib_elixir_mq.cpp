@@ -208,7 +208,7 @@ extern "C" ERL_NIF_TERM _write(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM a
     }
 
     std::vector<uint8_t> data(bin_data.data, bin_data.data+ bin_data.size);
-    queues[queueId]->write(data, priority);
+    queues[queueId]->write(std::move(data), priority);
 
     return nifpp::make(env, nifpp::str_atom("ok"));
 }
