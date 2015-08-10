@@ -91,7 +91,11 @@ public:
         int error = errno;
         if (sendRet)
         {
-            std::cerr << "Sending to mq failed: " << strerror(error) << std::endl;
+            if (errno != EAGAIN)
+            {
+                //This may happen often...
+                std::cerr << "Sending to mq failed: " << strerror(error) << std::endl;
+            }
 
             if (errno == EMSGSIZE)
             {
