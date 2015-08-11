@@ -100,21 +100,15 @@ extern "C" ERL_NIF_TERM _open(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM ar
 
     if (write_flag)
     {
-        std::tuple<int, int> sizes;
-        if (!nifpp::get(env, argv[2], sizes))
-        {
-            return enif_make_badarg(env);
-        }
+	if (!nifpp::get(env, argv[2], std::tie(maximum_message_count, message_size)))
+	{
+	  return enif_make_badarg(env);
+	}
 
-        if (std::get<0>(sizes) >= 0)
-        {
-            maximum_message_count = std::get<0>(sizes);
-        }
-
-        if (std::get<1>(sizes) >= 0)
-        {
-            message_size = std::get<0>(sizes);
-        }
+	if (maximum_message_count < 0)
+	{
+	  maximum_message_count = 0;
+	}
     }
 
     MessageQueueNif::OpenFlags flags = MessageQueueNif::OpenFlags::INVALID;
