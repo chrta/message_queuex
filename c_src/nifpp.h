@@ -747,8 +747,10 @@ namespace detail
     };
 } // namespace detail
 
+namespace
+{
 template<typename ...Ts>
-int get(ErlNifEnv *env, ERL_NIF_TERM term, std::tuple<Ts...> &var)
+int get_tuple(ErlNifEnv *env, ERL_NIF_TERM term, std::tuple<Ts...> &var)
 {
     int arity;
     const ERL_NIF_TERM *array;
@@ -764,6 +766,19 @@ int get(ErlNifEnv *env, ERL_NIF_TERM term, std::tuple<Ts...> &var)
 
     // invoke recursive template to convert all items of tuple
     return detail::array_to_tupler<std::tuple_size<std::tuple<Ts...>>::value>::go(env, var, array+arity);
+}
+} // namespace
+
+template<typename ...Ts>
+int get(ErlNifEnv *env, ERL_NIF_TERM term, std::tuple<Ts...> &var)
+{
+    return get_tuple(env, term, var);
+}
+
+template<typename ...Ts>
+int get(ErlNifEnv *env, ERL_NIF_TERM term, std::tuple<Ts&...> var)
+{
+    return get_tuple(env, term, var);
 }
 
 
@@ -1079,6 +1094,15 @@ T get(ErlNifEnv *env, ERL_NIF_TERM term)
 
 template<typename T>
 void get_throws(ErlNifEnv *env, ERL_NIF_TERM term, T &t)
+{
+    if(!get(env, term, t))
+    {
+        throw badarg();
+    }
+}
+
+template<typename ...Ts>
+void get_throws(ErlNifEnv *env, ERL_NIF_TERM term, std::tuple<Ts&...> t)
 {
     if(!get(env, term, t))
     {
