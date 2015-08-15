@@ -17,7 +17,7 @@ defmodule MessageQueue do
 
 	@type mode :: :read | :write
 
-  @doc """
+  @doc ~S"""
 	Opens the message queue.
 
 	The queue must be closed when it is no longer needed by calling `close/1`.
@@ -55,7 +55,7 @@ defmodule MessageQueue do
     Nif.open(mq_name, flags, sizes)
   end
 
-	@doc """
+	@doc ~S"""
 	This function is reserved for future use ;).
 
   *Do not use this function right now.*
@@ -65,7 +65,7 @@ defmodule MessageQueue do
     Nif.read(fd)
   end
 
-	@doc """
+	@doc ~S"""
 	Writes data to the queue.
 
 	See the documentation `man mq_send` for a description of the wrapped
@@ -98,14 +98,13 @@ defmodule MessageQueue do
 			{:mq, 15, 1, "Data"}
 			:ok
 
-
-	"""
+  """
   @spec write(non_neg_integer, non_neg_integer, bitstring) :: :ok | {:error, String.t}
   def write(fd, priority, bin_data) do
     Nif.write(fd, priority, bin_data)
   end
 
-	@doc """
+	@doc ~S"""
 	Closes an open message queue.
 
   The parameter `fd` is the descriptor of the queue returned by `open/3`.
@@ -123,7 +122,7 @@ defmodule MessageQueue do
 			iex> MessageQueue.close fd
 
 
-	"""
+  """
   @spec close(non_neg_integer) :: :ok | {:error, String.t}
   def close(fd) do
     Nif.close(fd)
