@@ -1,12 +1,15 @@
 defmodule MessageQueue.Mixfile do
   use Mix.Project
 
+	@github_link "https://github.com/chrta/message_queuex"
+
   def project do
     [app: :message_queue,
      version: "0.0.1",
      elixir: "~> 1.0",
      description: description,
      package: package,
+		 source_url: @github_link,
      compilers: [:make, :elixir, :app], # Add the make compiler
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
@@ -30,7 +33,8 @@ defmodule MessageQueue.Mixfile do
   #
   # Type `mix help deps` for more examples and options
   defp deps do
-    []
+    [{:earmark, "~> 0.1", only: :dev},
+		 {:ex_doc, "~> 0.8", only: :dev}]
   end
 
   defp description do
@@ -46,7 +50,7 @@ defmodule MessageQueue.Mixfile do
       files: ["lib", "priv", "mix.exs", "README.md", "LICENSE", "c_src*", "config*", "priv*", "test*"],
       contributors: ["Christian Taedcke"],
       licenses: ["Apache 2.0"],
-      links: %{"GitHub" => "https://github.com/chrta/message_queuex"}]
+      links: %{"GitHub" => @github_link}]
   end
 end
 
