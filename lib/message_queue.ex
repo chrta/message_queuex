@@ -1,15 +1,32 @@
 defmodule MessageQueue do
-  @moduledoc """
+  @moduledoc ~S"""
   Provides the interface to the posix message queue api.
 
 	After opening the message queue, all received messages are send automatically
-	to the process that opened the queue.
+	to the process that opened the queue. The format of the message is
+	`{:mq, fd, priority, data}`
+
+	`:mq` specifies that the data is received from a message queue.
+
+	`fd` contains the descriptor of the queue.
+
+	`priority` contains the priority of the received message.
+
+	`data` contains the message data.
 
   ## Examples
 
-      iex> {:ok, fd} = MessageQueue.open "/queue_name", [:read, :write], {10, 10}
+			iex> {:ok, fd} = MessageQueue.open "/queue_name", [:read, :write], {10, 10}
 			{:ok, 15}
+			iex> MessageQueue.write fd, 1, "Data"
+			:ok
 			iex> MessageQueue.close fd
+			iex> receive do
+			...>   {:mq, ^fd, prio, data} -> IO.puts "Received message with priority #{prio}: '#{data}'"
+			...> after
+			...>   100 -> IO.puts "Receive timeout"
+			...> end
+			:ok
 
   """
 
@@ -45,9 +62,10 @@ defmodule MessageQueue do
 
   ## Examples
 
-      iex> {:ok, fd} = MessageQueue.open "/queue_name", [:read, :write], {10, 10}
+			iex> {:ok, fd} = MessageQueue.open "/queue_name", [:read, :write], {10, 10}
 			{:ok, 15}
 			iex> MessageQueue.close fd
+			:ok
 
   """
   @spec open(String.t, [mode], {non_neg_integer, non_neg_integer}) :: {:ok, non_neg_integer} | {:error, String.t}
@@ -89,12 +107,12 @@ defmodule MessageQueue do
 
   ## Examples
 
-      iex> {:ok, fd} = MessageQueue.open "/queue_name", [:read, :write], {10, 10}
+			iex> {:ok, fd} = MessageQueue.open "/queue_name", [:read, :write], {10, 10}
 			{:ok, 15}
-			iex> MessageQueue.write 15, 1, "Data"
+			iex> MessageQueue.write fd, 1, "Data"
 			:ok
 			iex> MessageQueue.close fd
-			iex> flush
+			iex> IEx.Helpers.flush
 			{:mq, 15, 1, "Data"}
 			:ok
 
@@ -117,9 +135,10 @@ defmodule MessageQueue do
 
   ## Examples
 
-      iex> {:ok, fd} = MessageQueue.open "/queue_name", [:read, :write], {10, 10}
+			iex> {:ok, fd} = MessageQueue.open "/queue_name", [:read, :write], {10, 10}
 			{:ok, 15}
 			iex> MessageQueue.close fd
+			:ok
 
 
   """
