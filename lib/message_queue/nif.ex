@@ -6,23 +6,22 @@ defmodule MessageQueue.Nif do
     :ok = :erlang.load_nif(path, 0)
   end
 
-	# options [:read, :write]
-  @spec open(String.t, [atom], {integer, integer}) :: {atom, integer}
+  @spec open(String.t, [MessageQueue.mode], {non_neg_integer, non_neg_integer}) :: {:ok, non_neg_integer} | {:error, String.t}
   def open(mq_file, flags, sizes) do
     _open(String.to_char_list(mq_file), flags, sizes)
   end
 
-  @spec read(integer) :: {atom, integer, bitstring}
+  @spec read(non_neg_integer) :: {atom, non_neg_integer, bitstring}
   def read(fd) do
     _read(fd)
   end
 
-  @spec write(integer,integer, bitstring) :: atom
+	@spec write(non_neg_integer, non_neg_integer, bitstring) :: :ok | {:error, String.t}
   def write(fd, priority, bin_data) do
     _write(fd, priority, bin_data)
   end
 
-  @spec close(integer) :: atom
+	@spec close(non_neg_integer) :: :ok | {:error, String.t}
   def close(fd) do
     _close(fd)
   end
