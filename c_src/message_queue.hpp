@@ -10,13 +10,6 @@
 #include <mqueue.h>
 
 
-constexpr int MAXBUFLEN = 1024;
-
-struct message
-{
-    int i;
-};
-
 template <typename T>
 class MessageQueue
 {
@@ -24,7 +17,20 @@ public:
 
     enum class OpenFlags {READ_ONLY, WRITE_ONLY, READ_WRITE, INVALID};
 
-    MessageQueue(boost::asio::io_service& ioService, const std::string& queueName, OpenFlags flags, long maximum_message_count = 0, size_t message_size = 0)
+    /**
+     * @brief Constructor
+     *
+     * @param[in] ioService The asio io_serice instance.
+     * @param[in] queueName The name of the message queue.
+     * @param[in] flags The flags used to open the queue.
+     * @param[in] maximum_message_count The maximum count of messages in the queue. This parameter is only used, when
+     *            the queue is openend with the write flag active.
+     * @param[in] message_size The maximum size of one message in the queue in byte. This parameter is only used, when
+     *            the queue is openend with the write flag active.
+     * @throws  std::runtime_error if opening the queue failed.
+     */
+    MessageQueue(boost::asio::io_service& ioService, const std::string& queueName, OpenFlags flags,
+                 long maximum_message_count = 0, size_t message_size = 0)
         : ioService(ioService),
           streamDescriptor(ioService),
           mqid(-1)
@@ -67,6 +73,11 @@ public:
                                 boost::asio::placeholders::error));
     }
 
+    /**
+     * @brief Destructor
+     *
+     * Closes the queue and waits for it to finish.
+     */
     ~MessageQueue()
     {
         boost::unique_lock<boost::mutex> lock(mutex);
@@ -87,7 +98,8 @@ public:
         send_queue.pop();
         lock.unlock();
 
-        int sendRet = mq_send(mqid, reinterpret_cast<const char*>(write_data.data.data()), write_data.data.size(), write_data.priority);
+        int sendRet = mq_send(mqid, reinterpret_cast<const char*>(write_data.data.data()),
+                              write_data.data.size(), write_data.priority);
         int error = errno;
         if (sendRet)
         {
@@ -100,10 +112,12 @@ public:
             if (errno == EMSGSIZE)
             {
                 //Message is too big, discard it
+                //TODO: Notify sender
             }
             else
             {
                 lock.lock();
+                //TODO: Maybe add a retry counter to write_data
                 send_queue.push(write_data);
                 lock.unlock();
             }
@@ -114,7 +128,6 @@ public:
             return;
         }
 
-        //Sending failed, try again
         streamDescriptor.async_write_some(
                     boost::asio::null_buffers(),
                     boost::bind(&MessageQueue::handleWrite,
@@ -132,6 +145,7 @@ public:
             return;
         }
 
+        constexpr int MAXBUFLEN = 1024;
         char buf[MAXBUFLEN];
         unsigned int prio = 0;
 
