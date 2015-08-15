@@ -13,7 +13,9 @@ defmodule MessageQueue.Mixfile do
      compilers: [:make, :elixir, :app], # Add the make compiler
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
-     deps: deps]
+     deps: deps,
+		 test_coverage: [tool: Coverex.Task, coveralls: true]
+		]
   end
 
   # Configuration for the OTP application
@@ -34,7 +36,9 @@ defmodule MessageQueue.Mixfile do
   # Type `mix help deps` for more examples and options
   defp deps do
     [{:earmark, "~> 0.1", only: :dev},
-		 {:ex_doc, "~> 0.8", only: :dev}]
+		 {:ex_doc, "~> 0.8", only: :dev},
+		 {:coverex, "~> 1.4.1", only: :test}
+		]
   end
 
   defp description do
