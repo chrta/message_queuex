@@ -202,7 +202,14 @@ public:
 
     void close()
     {
-        ioService.post(boost::bind(&MessageQueue::do_close, this));
+        if (ioService.stopped())
+        {
+            do_close();
+        }
+        else
+        {
+            ioService.post(boost::bind(&MessageQueue::do_close, this));
+        }
     }
 
 private:
