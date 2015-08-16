@@ -82,7 +82,17 @@ public:
     {
         boost::unique_lock<boost::mutex> lock(mutex);
         close();
-        cond.wait(lock);
+        try
+        {
+            if (!cond.timed_wait(lock, boost::posix_time::milliseconds(500)))
+            {
+                std::cerr << "Failed to close the queue." << std::endl;
+            }
+        }
+        catch(...)
+        {
+            std::cerr << "Exception while waiting to close the queue." << std::endl;
+        }
     }
 
     void handleWrite(const boost::system::error_code &/*ec*/, std::size_t /*bytes_transferred*/)
