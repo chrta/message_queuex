@@ -86,12 +86,14 @@ public:
         {
             if (!cond.timed_wait(lock, boost::posix_time::milliseconds(500)))
             {
-                std::cerr << "Failed to close the queue." << std::endl;
+                std::cerr << "Failed to close the queue asynchronously." << std::endl;
+                do_close();
             }
         }
         catch(...)
         {
             std::cerr << "Exception while waiting to close the queue." << std::endl;
+            do_close();
         }
     }
 
