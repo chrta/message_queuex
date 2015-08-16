@@ -122,11 +122,74 @@ defmodule MessageQueueTest do
 		end)
 		Enum.map(1..1_000, fn(_) ->
 			:ok = receive do
-				{:mq, fd, prio, data} -> :ok
+				{:mq, _fd, _prio, _data} -> :ok
 			after
 				100 -> :error
 			end
 		end)
 		:ok = MessageQueue.close fd
 	end
+
+	test "controlling_process" do
+		{:ok, fd} = MessageQueue.open @test_queuename,  [:read, :write], {10, 10}
+		:ok = receive do
+			_ -> "Did not expect to receive anything"
+		after
+			100 -> :ok
+		end
+		parent = self()
+		pid = spawn fn -> receive do
+				{:mq, _fd, _prio, _data} -> send parent, {:child, :ok}
+				_ -> send parent, {:child, :error, :unexpected_message}
+											after
+												500 -> send parent, {:child, :error, :timeout}
+			end
+		end
+		:ok = MessageQueue.controlling_process fd, pid
+		:ok = MessageQueue.write fd, 1, "1234"
+		:ok = receive do
+			{:mq, _, _, _} -> {:error, "Queue should not send to this process"}
+			{:child, :ok} -> :ok
+			{:child, :error, error} -> {:error, "Received error #{error} from child"}
+			_ -> {:error, "Received unexpected stuff"}
+		after
+			100 -> {:error, "Receive timeout"}
+		end
+
+		:ok = MessageQueue.close fd
+	end
+
+	test "controlling_process_2" do
+		{:ok, fd} = MessageQueue.open @test_queuename,  [:read, :write], {10, 10}
+		:ok = receive do
+			_ -> "Did not expect to receive anything"
+		after
+			100 -> :ok
+		end
+		parent = self()
+		spawn fn -> case MessageQueue.controlling_process fd, self() do
+									:ok -> send parent, {:child, :error, :should_not_work}
+									{:error, _msg} -> send parent, {:child, :ok}
+								end
+		end
+
+		:ok = receive do
+			{:child, :ok} -> :ok
+			{:child, :error, error} -> {:error, "Received error #{error} from child"}
+			_ -> {:error, "Received unexpected stuff"}
+		after
+			100 -> {:error, "Receive timeout"}
+		end
+
+		:ok = MessageQueue.write fd, 1, "1234"
+		:ok = receive do
+			{:mq, ^fd, 1, "1234"} -> :ok
+			_ -> {:error, "Received unexpected stuff"}
+		after
+			100 -> {:error, "Receive timeout"}
+		end
+
+		:ok = MessageQueue.close fd
+	end
+
 end

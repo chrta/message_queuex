@@ -123,6 +123,42 @@ defmodule MessageQueue do
   end
 
 	@doc ~S"""
+	Assigns a new controlling process to the given message queue.
+
+  The controlling process is the process which receives messages from the queue. If called by any other process than
+  the current controlling process, an error is returned.
+
+  The parameter `fd` is the descriptor of the queue returned by `open/3`.
+
+  The function returns:
+  * `:ok` if sucessful.
+  * `{:error, reason}` - the controlling process could not be changed.
+
+	If the given parameter are malformed, an `ArgumentError` is raised.
+
+  ## Examples
+
+			iex> {:ok, fd} = MessageQueue.open "/queue_name", [:read, :write], {10, 10}
+			{:ok, 15}
+			iex> pid = spawn fn -> receive do
+			...> {:mq, fd, prio, data} -> IO.puts "Received data from #{fd}"
+			...> end
+			...> end
+			iex> MessageQueue.controlling_process fd, pid
+			:ok
+			iex> MessageQueue.write fd, 2, "Test"
+			:ok
+			Received data from 15
+			iex> MessageQueue.close fd
+			:ok
+
+  """
+  @spec controlling_process(non_neg_integer, pid) :: :ok | {:error, String.t}
+  def controlling_process(fd, pid) do
+    Nif.controlling_process(fd, pid)
+  end
+
+	@doc ~S"""
 	Closes an open message queue.
 
   The parameter `fd` is the descriptor of the queue returned by `open/3`.

@@ -21,24 +21,33 @@ defmodule MessageQueue.Nif do
     _write(fd, priority, bin_data)
   end
 
+	@spec controlling_process(non_neg_integer, pid) :: :ok | {:error, String.t}
+	def controlling_process(fd, pid) do
+    _controlling_process(fd, pid)
+	end
+
 	@spec close(non_neg_integer) :: :ok | {:error, String.t}
   def close(fd) do
     _close(fd)
   end
 
-  def _open(mq_file, flags, sizes) do
+  def _open(_mq_file, _flags, _sizes) do
     :erlang.nif_error("NIF library not loaded")
   end
 
-  def _read(fd) do
+  def _read(_fd) do
     :erlang.nif_error("NIF library not loaded")
   end
 
-  def _close(fd) do
+  def _close(_fd) do
     :erlang.nif_error("NIF library not loaded")
   end
 
-  def _write(fd, priority, bin_data) do
+  def _write(_fd, _priority, _bin_data) do
+    :erlang.nif_error("NIF library not loaded")
+  end
+
+	def _controlling_process(_fd, _pid) do
     :erlang.nif_error("NIF library not loaded")
   end
 end

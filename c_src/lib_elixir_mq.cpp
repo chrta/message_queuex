@@ -4,8 +4,8 @@
 
 #include <iostream>
 
-#include <stdio.h>
-#include <string.h>
+#include <cstdio>
+#include <cstring>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <errno.h>
@@ -73,6 +73,24 @@ public:
     {
         //std::cout << "on_mq_read_error " << strerror(error_number) << std::endl;
         //do not report read errors to the user
+    }
+
+    /**
+     * @brief Returns the pid that is notified in case of an event on the queue.
+     * @return The pid that is notified in case of an event on the queue.
+     */
+    const ErlNifPid& get_owner() const
+    {
+        return owner;
+    }
+
+    /**
+     * @brief Sets the pid that is notified in case of an event on the queue.
+     * @param[in] new_owner The new pid. It must be a local pid.
+     */
+    void set_owner(ErlNifPid new_owner)
+    {
+        owner = new_owner;
     }
 
 private:
@@ -286,6 +304,52 @@ extern "C" ERL_NIF_TERM _write(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM a
     return nifpp::make(env, nifpp::str_atom("ok"));
 }
 
+/**
+ * @brief Assigns a new controlling process to the given message queue.
+ *
+ * The controlling process is the process which receives messages from the queue. If called by any other process than
+ * the current controlling process, an error is returned.
+ *
+ * @param[in] env The environment.
+ * @param[in] arc The count of arguments.
+ * @param[in] argv The function arguments.
+ * @retval :ok if the data could be queued.
+ * @retval ArgumentError if the supplied arguments in argv are invalid
+ */
+extern "C" ERL_NIF_TERM _controlling_process(ErlNifEnv* env, int /*arc*/, const ERL_NIF_TERM argv[])
+{
+    mqd_t queueId = -1;
+    if (!nifpp::get(env, argv[0], queueId))
+    {
+        return enif_make_badarg(env);
+    }
+
+    if (queues.find(queueId) == queues.end())
+    {
+        return report_errno_error(env, EBADF);
+    }
+
+    //get local pid
+    ErlNifPid new_owner;
+    if (!nifpp::get(env, argv[1], new_owner))
+    {
+        return enif_make_badarg(env);
+    }
+
+    //check owner
+    ErlNifPid current_pid;
+    enif_self(env, &current_pid);
+
+    if (std::memcmp(&current_pid, &queues[queueId]->get_owner(), sizeof(ErlNifPid)))
+    {
+        return report_string_error(env, "The calling process is not the owner of the queue");
+    }
+
+    queues[queueId]->set_owner(new_owner);
+
+    return nifpp::make(env, nifpp::str_atom("ok"));
+}
+
 
 /**
  * @brief Closes the given message queue.
@@ -406,6 +470,7 @@ ErlNifFunc nif_funcs[] =
     {"_open",  3, _open,  0},
     {"_read",  1, _read,  0},
     {"_write", 3, _write, 0},
+    {"_controlling_process", 2, _controlling_process, 0},
     {"_close", 1, _close, 0}
 };
 
